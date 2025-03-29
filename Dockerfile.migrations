@@ -1,0 +1,13 @@
+# Dockerfile.migrations
+FROM golang:1.23-alpine
+
+# Устанавливаем необходимые пакеты
+RUN apk add --no-cache postgresql-client bash
+
+# Устанавливаем migrate
+RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.1
+
+WORKDIR /app
+COPY ./migrations ./migrations
+
+CMD ["migrate", "-path", "/app/migrations", "-database", "${DATABASE_URL}", "up"]

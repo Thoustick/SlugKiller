@@ -1,0 +1,98 @@
+services:
+  slugkiller:
+    build: .
+    container_name: slugkiller
+    env_file: .env
+    environment:
+      STORAGE_TYPE: ${STORAGE_TYPE:-postgres}
+    ports:
+      - ${HTTP_PORT}:${HTTP_PORT}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - slugkiller_network
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - |
+          if [ "$$STORAGE_TYPE" = "postgres" ]; then
+            pg_isready -h ${DB_HOST} -U ${DB_USER} -d ${DB_NAME}
+          else
+            exit 0
+          fi
+      interval: 10s
+      timeout: 5s
+      retries: 3
+  tests:
+    profiles: ["tests"]
+    build:
+      context: .
+      dockerfile: Dockerfile.tests
+    command: go test -v ./...
+    volumes:
+      - .:/app
+
+  migration:
+    profiles: ["postgres"]
+    build:
+      context: .
+      dockerfile: Dockerfile.migrations
+    env_file: .env
+    command: >
+      bash -c "
+        until pg_isready -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME}; do
+          echo 'Waiting for Postgres...';
+          sleep 2;
+        done;
+        echo 'Running migrations...';
+        migrate -path /app/migrations -database \"${DATABASE_URL}\" up
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - slugkiller_network
+
+  postgres:
+    profiles: ["postgres"]
+    image: postgres:16-alpine
+    container_name: slugkiller_postgres
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - slugkiller_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: slugkiller_redis
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - slugkiller_network
+
+volumes:
+  pgdata:
+  redisdata:
+
+networks:
+  slugkiller_network:
+    name: slugkiller_network
+    driver: bridge
+    labels:
+      com.docker.compose.network: slugkiller_network
+      com.docker.compose.project: slugkiller
