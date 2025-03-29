@@ -1,8 +1,6 @@
-### Makefile
-```makefile
-.PHONY: build run test migrate
+.PHONY: build run run-postgres stop test migrate logs clean help
 
-DOCKER_COMPOSE = docker-compose
+DOCKER_COMPOSE = docker compose
 APP_NAME = slugkiller
 
 build:

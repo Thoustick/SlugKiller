@@ -126,18 +126,18 @@ LOG_LEVEL=debug|info|warn|error|fatal
 ### 🚧 Run with In-Memory Storage
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 ### 🧪 Run with PostgreSQL
 
 ```bash
-STORAGE_TYPE=postgres docker-compose --profile postgres up --build
+STORAGE_TYPE=postgres docker compose --profile postgres up --build
 ```
 ### Run Tests
 
 ```bash
-docker-compose -f docker-compose.test.yml up --build --abort-on-container-exit
+docker-compose -f docker compose.test.yml up --build --abort-on-container-exit
 ```
 
 
