@@ -12,14 +12,15 @@ import (
 
 	"github.com/Thoustick/SlugKiller/config"
 	"github.com/Thoustick/SlugKiller/internal/cache"
+	"github.com/Thoustick/SlugKiller/internal/di"
 	"github.com/Thoustick/SlugKiller/internal/repository"
-	"github.com/Thoustick/SlugKiller/internal/server"
 	"github.com/Thoustick/SlugKiller/internal/tests/mocks"
 	"github.com/Thoustick/SlugKiller/pkg/logger"
 )
 
 func TestNewAppWithMocks(t *testing.T) {
 	t.Run("успешная инициализация", func(t *testing.T) {
+		ctx := context.Background()
 		cfg := &config.Config{
 			HTTPAddr:    ":8080",
 			StorageType: "memory",
@@ -35,13 +36,14 @@ func TestNewAppWithMocks(t *testing.T) {
 			return &mocks.MockCache{}, nil
 		}
 
-		app, err := server.NewApp(cfg, mockStorage, mockCache)
+		app, err := di.NewTestApp(ctx, cfg, mockStorage, mockCache)
 		assert.NoError(t, err)
 		assert.NotNil(t, app)
 		assert.Equal(t, ":8080", cfg.HTTPAddr)
 	})
 
 	t.Run("ошибка при инициализации cache", func(t *testing.T) {
+		ctx := context.Background()
 		cfg := &config.Config{
 			HTTPAddr:    ":8080",
 			StorageType: "memory",
@@ -57,12 +59,13 @@ func TestNewAppWithMocks(t *testing.T) {
 			return nil, errors.New("cache init fail")
 		}
 
-		app, err := server.NewApp(cfg, mockStorage, mockCache)
+		app, err := di.NewTestApp(ctx, cfg, mockStorage, mockCache)
 		assert.Nil(t, app)
 		assert.EqualError(t, err, "cache init fail")
 	})
 
 	t.Run("ошибка при инициализации storage", func(t *testing.T) {
+		ctx := context.Background()
 		cfg := &config.Config{
 			HTTPAddr:    ":8080",
 			StorageType: "memory",
@@ -78,13 +81,14 @@ func TestNewAppWithMocks(t *testing.T) {
 			return &mocks.MockCache{}, nil
 		}
 
-		app, err := server.NewApp(cfg, mockStorage, mockCache)
+		app, err := di.NewTestApp(ctx, cfg, mockStorage, mockCache)
 		assert.Nil(t, app)
 		assert.EqualError(t, err, "db down")
 	})
 }
 
 func TestApp_Run(t *testing.T) {
+	ctx := context.Background()
 	cfg := &config.Config{
 		HTTPAddr:    ":8081",
 		StorageType: "memory",
@@ -101,7 +105,7 @@ func TestApp_Run(t *testing.T) {
 		return &mocks.MockCache{}, nil
 	}
 
-	app, err := server.NewApp(cfg, mockStorage, mockCache)
+	app, err := di.NewTestApp(ctx, cfg, mockStorage, mockCache)
 	assert.NoError(t, err)
 
 	// Запускаем сервер в отдельной горутине

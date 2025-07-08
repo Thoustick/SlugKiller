@@ -1,16 +1,20 @@
 package main
 
 import (
+	"context"
+
 	"github.com/Thoustick/SlugKiller/config"
-	"github.com/Thoustick/SlugKiller/internal/server"
+	"github.com/Thoustick/SlugKiller/internal/di"
 )
 
 func main() {
 	cfg := config.Load()
-	app, err := server.NewApp(
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	app, err := di.NewApp(
+		ctx,
 		cfg,
-		server.ProductionStorageFactory,
-		server.ProductionCacheProvider,
 	)
 	if err != nil {
 		panic(err)

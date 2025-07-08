@@ -151,7 +151,7 @@ func (s *urlService) Resolve(ctx context.Context, slug string) (string, error) {
 	}
 
 	// 3. Обновляем кэш (добавляем обработку ошибок записи)
-	if err := s.cache.Set(ctx, slug, link.URL, s.cfg.CacheTTL); err != nil {
+	if err := s.cache.SetNX(ctx, slug, link.URL, s.cfg.CacheTTL); err != nil {
 		s.logger.Warn("Failed to update cache", map[string]interface{}{
 			"slug":  slug,
 			"error": err.Error(),

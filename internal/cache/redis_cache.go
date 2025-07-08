@@ -26,6 +26,6 @@ func (r *redisCache) Get(ctx context.Context, slug string) (string, error) {
 	return val, nil
 }
 
-func (r *redisCache) Set(ctx context.Context, slug, url string, ttl time.Duration) error {
-	return r.Client.Set(ctx, slug, url, ttl).Err()
+func (r *redisCache) SetNX(ctx context.Context, slug, url string, ttl time.Duration) error {
+	return r.Client.SetNX(ctx, slug, url, ttl).Err()
 }

@@ -2,16 +2,15 @@ package server
 
 import (
 	"context"
-	"os/signal"
-	"syscall"
+	"net/http"
+	"time"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/Thoustick/SlugKiller/config"
 	"github.com/Thoustick/SlugKiller/internal/cache"
-	"github.com/Thoustick/SlugKiller/internal/handler"
 	"github.com/Thoustick/SlugKiller/internal/repository"
-	"github.com/Thoustick/SlugKiller/internal/service"
 	"github.com/Thoustick/SlugKiller/pkg/logger"
-	"github.com/gin-gonic/gin"
 )
 
 type (
@@ -20,59 +19,41 @@ type (
 )
 
 type App struct {
-	engine *gin.Engine
-	cfg    *config.Config
-}
-
-func NewApp(
-	cfg *config.Config,
-	storageFactory StorageFactory,
-	cacheProvider CacheProvider,
-) (*App, error) {
-	ctx := setupGracefulShutdown()
-	log := setupLogger(cfg)
-
-	cacheLayer, err := cacheProvider(cfg, log)
-	if err != nil {
-		log.Error("Failed to initialize cache", err, nil)
-		return nil, err
-	}
-
-	repo, err := storageFactory(ctx, cfg, log)
-	if err != nil {
-		log.Error("Failed to init sorage", err, nil)
-		return nil, err
-	}
-
-	slugGen := service.NewSlugGenerator(cfg.SlugLength)
-	urlService := service.NewURLService(repo, log, cacheLayer, cfg, slugGen)
-
-	h := handler.NewHandler(urlService, log)
-
-	r := setupRouter(h)
-
-	return &App{
-		engine: r,
-		cfg:    cfg,
-	}, nil
+	Engine *gin.Engine
+	Cfg    *config.Config
+	Ctx    context.Context
+	Cancel context.CancelFunc
+	Logger logger.Logger
 }
 
 func (a *App) Run() error {
-	return a.engine.Run(a.cfg.HTTPAddr)
-}
+	srv := &http.Server{
+		Addr:    a.Cfg.HTTPAddr,
+		Handler: a.Engine,
+	}
 
-func setupGracefulShutdown() context.Context {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	_ = stop // использовать stop() можно в будущем, если нужно graceful stop
-	return ctx
-}
+	go func() {
+		a.Logger.Info("starting HTTP server", map[string]interface{}{
+			"addr": a.Cfg.HTTPAddr,
+		})
 
-func setupLogger(cfg *config.Config) logger.Logger {
-	return logger.InitLogger(cfg)
-}
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			a.Logger.Error("HTTP server error", err, nil)
+		}
+	}()
 
-func setupRouter(h handler.URLHandler) *gin.Engine {
-	r := gin.Default()
-	h.RegisterRoutes(r)
-	return r
+	<-a.Ctx.Done()
+
+	a.Logger.Info("shutdown signal received", nil)
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		a.Logger.Error("graceful shutdown failed", err, nil)
+		return err
+	}
+
+	a.Logger.Info("server stopped gracefully", nil)
+	return nil
 }

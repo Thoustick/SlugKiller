@@ -127,7 +127,7 @@ func TestResolveURL_Success(t *testing.T) {
 
 	// Имитируем GET /:slug
 	req, _ := http.NewRequest(http.MethodGet, "/abc123", nil)
-	c.Params = gin.Params{{Key: "slug", Value: slug}}
+	c.Params = gin.Params{gin.Param{Key: "slug", Value: slug}}
 	c.Request = req
 
 	h.ResolveURL(c)
@@ -156,7 +156,7 @@ func TestResolveURL_ServiceError(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	req, _ := http.NewRequest(http.MethodGet, "/fail", nil)
-	c.Params = gin.Params{{Key: "slug", Value: slug}}
+	c.Params = gin.Params{gin.Param{Key: "slug", Value: slug}}
 	c.Request = req
 
 	h.ResolveURL(c)
@@ -184,7 +184,7 @@ func TestResolveURL_NotFound(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	req, _ := http.NewRequest(http.MethodGet, "/notfound", nil)
-	c.Params = gin.Params{{Key: "slug", Value: slug}}
+	c.Params = gin.Params{gin.Param{Key: "slug", Value: slug}}
 	c.Request = req
 
 	h.ResolveURL(c)

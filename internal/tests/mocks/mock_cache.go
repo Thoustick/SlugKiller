@@ -16,7 +16,7 @@ func (m *MockCache) Get(ctx context.Context, slug string) (string, error) {
 	return args.String(0), args.Error(1)
 }
 
-func (m *MockCache) Set(ctx context.Context, slug, url string, ttl time.Duration) error {
+func (m *MockCache) SetNX(ctx context.Context, slug, url string, ttl time.Duration) error {
 	args := m.Called(ctx, slug, url, ttl)
 	return args.Error(0)
 }

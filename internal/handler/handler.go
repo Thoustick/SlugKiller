@@ -20,15 +20,6 @@ func NewHandler(s service.URLService, l logger.Logger) *Handler {
 	}
 }
 
-func (h *Handler) Start(addr string) error {
-	r := gin.Default()
-	h.RegisterRoutes(r)
-	h.logger.Info("starting server", map[string]interface{}{"addr": addr})
-	return r.Run(addr)
-}
-
-// func (h *Handler) ResolveURL(c *gin.Context) { /* ... */ }
-
 func (h *Handler) ShortenURL(c *gin.Context) {
 	h.logger.Info("Handling shorten request", map[string]interface{}{
 		"method": c.Request.Method,

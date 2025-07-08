@@ -1,0 +1,148 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ "main" ]		#Проверяем все пуши в main
+  workflow_dispatch:			#Ручной запуск из GitHub UI
+
+# Общие переменные, доступные во всех jobs
+env:
+  REGISTRY: ghcr.io                     #github Container Registry
+  IMAGE_NAME: ${{ github.repository}}
+
+jobs:
+###############################################################################
+# 1. ───  L I N T  ────────────────────────────────────────────────────────────
+###############################################################################
+  lint:
+    name: Lint / Vet / Fmt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"        # последняя стабильная 1.24.2
+          cache: true               # $GOMODCACHE автоматически
+      
+      - name: Download mod
+        run: go mod download
+
+      # golangci-lint ставим отдельным шагом, быстрее кешируется
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.58            # свежая версия
+          args: --timeout=5m
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Check gofmt
+        run: |
+          # выведем файлы, которые нарушают форматирование
+          UNFORMATTED=$(gofmt -l .)
+          if [ -n "$UNFORMATTED" ]; then
+            echo "::error::go files not formatted:"
+            echo "$UNFORMATTED"
+            exit 1
+          fi
+
+###############################################################################
+# 2. ───  T E S T S  ──────────────────────────────────────────────────────────
+###############################################################################
+  test:
+    name: Unit tests
+    needs: lint                     # запустится только при успешном линте
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with :
+            go-version: "1.24"
+            cache: true
+        
+      - name: Run unit test with coverage
+        run: |
+          go test -v -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
+
+      - name:  Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+###############################################################################
+# 3. ───  B U I L D  ──────────────────────────────────────────────────────────
+###############################################################################
+
+  build:
+    name: Build binary (CGO disabled)
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: action/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+
+      - name: Build SlugKiller
+        run: CGO_ENABLED=0 go build -o slugkiller ./cmd/server
+
+      
+      - name: Archive binary
+        uses: action/upload-artifact@v4
+        with:
+          name: sligkiller
+          path: slugkiller
+
+###############################################################################
+# 4. ───  D O C K E R   B U I L D  &  P U S H  ───────────────────────────────
+###############################################################################
+  
+  docker:
+    name: Docker build & push
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+    # Кэш слоёв Docker - серьёзный буст скорости
+      - name: Set up Docker layer cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Build and push image
+        uses: docker/build-push-actions@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:lastes
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=local,src=/tmp/ .buildx-cache
+          cache-to: type=local,dest=/tmp/ .buildx-cache, new=true
